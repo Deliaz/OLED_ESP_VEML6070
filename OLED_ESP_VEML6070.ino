@@ -15,6 +15,9 @@ SH1106Brzo  display(0x3c, 5, 4);
 #define IT_2   0x2 //2T
 #define IT_4   0x3 //4T
 
+char xStep = 0;
+float yValue[120];
+
 void setup() {
   Serial.begin(9600);
 
@@ -30,24 +33,67 @@ void setup() {
   Wire.beginTransmission(VEML_I2C_ADDR);
   Wire.write((IT_1 << 2) | 0x02);
   Wire.endTransmission();
-  delay(500);
+
+
+  for (char i = 0; i < 120; i++) {
+    yValue[i] = 0;
+  }
+  delay(150);
 }
 
 
 void loop() {
-  Wire.pins(2, 14);
   int raw = getUV();
-  float uvI = raw / 65536.0
+  float uvi = raw / 65536.0;
 
-              Wire.pins(5, 4);
   display.clear();
-  display.drawString(0, 0, "RAW ");
-  display.drawString(0, 12, String(raw));
-  display.drawString(0, 22, "UV ");
-  display.drawString(0, 34, String(uvI));
+  header(raw, uvi);
+  axis();
+  chart(uvi);
   display.display();
 
-  delay(500);
+
+  xStep += 1;
+  if (xStep >= 120) {
+    xStep = 0;
+
+    for (char i = 0; i < 120; i++) {
+      yValue[i] = 0;
+    }
+  }
+
+  delay(100);
+}
+
+void header(int raw, float uvi) {
+  display.drawString(0, 0, "Raw: ");
+  display.drawString(display.getStringWidth("Raw: ") + 2, 0, String(raw));
+  display.drawString(64, 0, "UV: ");
+  display.drawString(display.getStringWidth("UV: ") + 66, 0, String(uvi));
+}
+
+void axis() {
+  // X
+  display.drawLine(4, 14, 4, 64);
+
+  // Y
+  display.drawLine(0, 60, 124, 60);
+}
+
+void chart(float uvi) {
+  // 4.1818 = 60 / 11
+  float y = 60.0 - 4.1818 * uvi * 400; // 400 - DEBUG
+  if (y < 14.0) {
+    y = 14.0;
+  }
+  yValue[xStep] = y;
+
+  Serial.println(y);
+
+  for (char i = 0; i < xStep; i++) {
+    display.drawLine(i + 4, yValue[i], i + 4, 60);
+  }
+
 }
 
 float getUV() {
@@ -65,7 +111,5 @@ float getUV() {
     lsb = Wire.read();
 
   uv = (msb << 8) | lsb;
-  Serial.println(uv);
-  Serial.println(uv, DEC);
   return uv;
 }
